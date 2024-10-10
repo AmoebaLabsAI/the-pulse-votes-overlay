@@ -1,148 +1,161 @@
 "use client";
 
-import Image from "next/image";
 import { useState, useEffect } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
-// Pulse component to visualize sentiment
-const Pulse = ({ sentiment }: { sentiment: number }) => {
-  const height = `${(sentiment + 1) * 50}%`;
-  const backgroundColor =
-    sentiment > 0
-      ? `rgb(255, ${255 - sentiment * 255}, ${255 - sentiment * 255})`
-      : `rgb(${255 + sentiment * 255}, ${255 + sentiment * 255}, 255)`;
+// Helper function to process votes data for the chart
+const processVotesForChart = (votes: any[]) => {
+  const voteCounts = { "1": 0, "2": 0 };
+
+  return votes.map((vote, index) => {
+    const voteType = vote.vote.toLowerCase() as "1" | "2";
+    voteCounts[voteType] += 1;
+    return {
+      time: index,
+      ...voteCounts,
+    };
+  });
+};
+
+const VoteButtons = ({ messageId }: { messageId: string }) => {
+  const [voted, setVoted] = useState(false);
+
+  const handleVote = async (choice: "1" | "2") => {
+    if (voted) return;
+
+    try {
+      const response = await fetch("/api/chat-votes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messageId, choice }),
+      });
+
+      if (response.ok) {
+        setVoted(true);
+      } else {
+        console.error("Failed to submit vote");
+      }
+    } catch (error) {
+      console.error("Error submitting vote:", error);
+    }
+  };
 
   return (
-    <div className="w-full h-64 bg-gray-200 relative">
-      <div
-        className="absolute bottom-0 left-0 w-full transition-all duration-500 ease-in-out"
-        style={{ height, backgroundColor }}
-      />
+    <div className="flex space-x-2 mt-2">
+      <button
+        onClick={() => handleVote("1")}
+        className={`px-3 py-1 rounded ${
+          voted ? "bg-gray-300" : "bg-blue-500 hover:bg-blue-600"
+        } text-white`}
+        disabled={voted}
+      >
+        1
+      </button>
+      <button
+        onClick={() => handleVote("2")}
+        className={`px-3 py-1 rounded ${
+          voted ? "bg-gray-300" : "bg-red-500 hover:bg-red-600"
+        } text-white`}
+        disabled={voted}
+      >
+        2
+      </button>
     </div>
   );
 };
 
 export default function Home() {
-  const [sentiment, setSentiment] = useState(0);
-  const [youtubeVotes, setYoutubeVotes] = useState({ "1": 0, "2": 0 });
-  const [twitchVotes, setTwitchVotes] = useState({ "1": 0, "2": 0 });
+  const [debateId, setDebateId] = useState<number | null>(null);
+  const [votes, setVotes] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
+
+  const startNewDebate = async () => {
+    const response = await fetch("/api/chat-votes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "New Debate" }),
+    });
+    const data = await response.json();
+    setDebateId(data.debateId);
+  };
+
+  const getVotes = async () => {
+    if (debateId) {
+      const response = await fetch(`/api/chat-votes?debateId=${debateId}`);
+      const data = await response.json();
+      setVotes(data.votes);
+    }
+  };
+
+  const clearVotes = async () => {
+    if (debateId) {
+      await fetch(`/api/chat-votes?debateId=${debateId}`, { method: "DELETE" });
+      setVotes([]);
+    }
+  };
 
   useEffect(() => {
-    const fetchVotes = async () => {
-      try {
-        const response = await fetch("/api/chat-votes");
-        const data = await response.json();
+    const interval = setInterval(getVotes, 5000); // Poll for votes every 5 seconds
+    return () => clearInterval(interval);
+  }, [debateId]);
 
-        let newSentiment = sentiment;
-        let newYoutubeVotes = { ...youtubeVotes };
-        let newTwitchVotes = { ...twitchVotes };
-
-        data.votes.forEach((vote: { platform: string; vote: string }) => {
-          if (vote.platform === "youtube") {
-            newYoutubeVotes[vote.vote as "1" | "2"]++;
-          } else if (vote.platform === "twitch") {
-            newTwitchVotes[vote.vote as "1" | "2"]++;
-          }
-
-          newSentiment += vote.vote === "1" ? 0.1 : -0.1;
-        });
-
-        newSentiment = Math.max(-1, Math.min(1, newSentiment));
-
-        setSentiment(newSentiment);
-        setYoutubeVotes(newYoutubeVotes);
-        setTwitchVotes(newTwitchVotes);
-      } catch (error) {
-        console.error("Error fetching votes:", error);
-      }
-    };
-
-    // Fetch votes every 5 seconds
-    const intervalId = setInterval(fetchVotes, 5000);
-
-    // Clean up the interval when the component unmounts
-    return () => clearInterval(intervalId);
-  }, [sentiment, youtubeVotes, twitchVotes]);
+  useEffect(() => {
+    setChartData(processVotesForChart(votes));
+  }, [votes]);
 
   return (
-    <div className="grid grid-rows-[auto_1fr_auto] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <header className="w-full text-center">
-        <h1 className="text-2xl font-bold mb-4">Live Debate Sentiment</h1>
-        <p>
-          Watch the pulse change as the audience reacts on YouTube and Twitch!
-        </p>
-      </header>
+    <div>
+      {!debateId ? (
+        <button onClick={startNewDebate}>Start New Debate</button>
+      ) : (
+        <>
+          <h1>Debate ID: {debateId}</h1>
+          <button onClick={getVotes}>Refresh Votes</button>
+          <button onClick={clearVotes}>Clear Votes</button>
 
-      <main className="w-full max-w-2xl">
-        <Pulse sentiment={sentiment} />
-        <div className="mt-4 text-center">
-          <p>Current Sentiment: {sentiment.toFixed(2)}</p>
-          <p>
-            {sentiment > 0
-              ? "Favoring Guest 1"
-              : sentiment < 0
-              ? "Favoring Guest 2"
-              : "Neutral"}
-          </p>
-          <div className="mt-4">
-            <h2 className="font-bold">Vote Counts:</h2>
-            <p>
-              YouTube: Guest 1: {youtubeVotes["1"]}, Guest 2:{" "}
-              {youtubeVotes["2"]}
-            </p>
-            <p>
-              Twitch: Guest 1: {twitchVotes["1"]}, Guest 2: {twitchVotes["2"]}
-            </p>
+          {/* Line Chart */}
+          <div style={{ width: "100%", height: 400 }}>
+            <ResponsiveContainer>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="yes" stroke="#8884d8" />
+                <Line type="monotone" dataKey="no" stroke="#82ca9d" />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-        </div>
-      </main>
 
-      <footer className="flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {/* Vote counts */}
+          <div>
+            <h2>Total Votes</h2>
+            <p>Yes: {chartData[chartData.length - 1]?.yes || 0}</p>
+            <p>No: {chartData[chartData.length - 1]?.no || 0}</p>
+          </div>
+
+          {/* Existing vote list */}
+          <ul>
+            {votes.map((vote, index) => (
+              <li key={index}>
+                {vote.platform}: {vote.vote}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
