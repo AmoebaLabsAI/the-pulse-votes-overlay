@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
-const YouTube = require("youtube-live-chat");
-const tmi = require("tmi.js");
+import YouTube from "youtube-live-chat";
+import tmi from "tmi.js";
 
 let yt: any;
 let twitchClient: any;
@@ -44,17 +46,14 @@ function initTwitch(debateId: number) {
 
     twitchClient.connect();
 
-    twitchClient.on(
-      "message",
-      async (channel: string, tags: any, message: string, self: boolean) => {
-        const lowerMessage = message.toLowerCase();
-        if (lowerMessage.includes("1") || lowerMessage.includes("2")) {
-          await sql`INSERT INTO votes (debate_id, platform, vote) VALUES (${debateId}, 'twitch', ${
-            lowerMessage.includes("1") ? "1" : "2"
-          })`;
-        }
+    twitchClient.on("message", async (message: string) => {
+      const lowerMessage = message.toLowerCase();
+      if (lowerMessage.includes("1") || lowerMessage.includes("2")) {
+        await sql`INSERT INTO votes (debate_id, platform, vote) VALUES (${debateId}, 'twitch', ${
+          lowerMessage.includes("1") ? "1" : "2"
+        })`;
       }
-    );
+    });
   }
 }
 

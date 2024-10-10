@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -26,55 +28,6 @@ const processVotesForChart = (votes: any[]) => {
   });
 };
 
-const VoteButtons = ({ messageId }: { messageId: string }) => {
-  const [voted, setVoted] = useState(false);
-
-  const handleVote = async (choice: "1" | "2") => {
-    if (voted) return;
-
-    try {
-      const response = await fetch("/api/chat-votes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ messageId, choice }),
-      });
-
-      if (response.ok) {
-        setVoted(true);
-      } else {
-        console.error("Failed to submit vote");
-      }
-    } catch (error) {
-      console.error("Error submitting vote:", error);
-    }
-  };
-
-  return (
-    <div className="flex space-x-2 mt-2">
-      <button
-        onClick={() => handleVote("1")}
-        className={`px-3 py-1 rounded ${
-          voted ? "bg-gray-300" : "bg-blue-500 hover:bg-blue-600"
-        } text-white`}
-        disabled={voted}
-      >
-        1
-      </button>
-      <button
-        onClick={() => handleVote("2")}
-        className={`px-3 py-1 rounded ${
-          voted ? "bg-gray-300" : "bg-red-500 hover:bg-red-600"
-        } text-white`}
-        disabled={voted}
-      >
-        2
-      </button>
-    </div>
-  );
-};
-
 export default function Home() {
   const [debateId, setDebateId] = useState<number | null>(null);
   const [votes, setVotes] = useState<any[]>([]);
@@ -90,18 +43,18 @@ export default function Home() {
     setDebateId(data.debateId);
   };
 
+  const clearVotes = async () => {
+    if (debateId) {
+      await fetch(`/api/chat-votes?debateId=${debateId}`, { method: "DELETE" });
+      setVotes([]);
+    }
+  };
+
   const getVotes = async () => {
     if (debateId) {
       const response = await fetch(`/api/chat-votes?debateId=${debateId}`);
       const data = await response.json();
       setVotes(data.votes);
-    }
-  };
-
-  const clearVotes = async () => {
-    if (debateId) {
-      await fetch(`/api/chat-votes?debateId=${debateId}`, { method: "DELETE" });
-      setVotes([]);
     }
   };
 
