@@ -4,8 +4,8 @@
 
 import { useState, useEffect } from "react";
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -14,99 +14,221 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-// Helper function to process votes data for the chart
-const processVotesForChart = (votes: any[]) => {
+// Helper function to process votes data for the charts
+const processVotesForCharts = (votes: any[]) => {
   const voteCounts = { "1": 0, "2": 0 };
+  const platforms = new Set<string>();
 
-  return votes.map((vote, index) => {
-    const voteType = vote.vote.toLowerCase() as "1" | "2";
-    voteCounts[voteType] += 1;
-    return {
-      time: index,
-      ...voteCounts,
-    };
+  votes.forEach((vote) => {
+    if (vote.vote === "1" || vote.vote === "2") {
+      voteCounts[vote.vote as "1" | "2"] += 1;
+      platforms.add(vote.platform);
+    }
   });
+
+  const maxVotes = Math.max(voteCounts["1"], voteCounts["2"]);
+
+  return {
+    voteData: [
+      { name: "Option 1", votes: voteCounts["1"] },
+      { name: "Option 2", votes: voteCounts["2"] },
+    ],
+    platforms: Array.from(platforms),
+    maxVotes: maxVotes,
+  };
 };
 
 export default function Home() {
-  const [debateId, setDebateId] = useState<number | null>(null);
+  const [isListening, setIsListening] = useState(false);
   const [votes, setVotes] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [voteData, setVoteData] = useState<any[]>([]);
+  const [platforms, setPlatforms] = useState<string[]>([]);
+  const [maxVotes, setMaxVotes] = useState<number>(0);
+  const [liveChatId, setLiveChatId] = useState<string | null>(null);
+  const [pageToken, setPageToken] = useState<string | null>(null);
 
-  const startNewDebate = async () => {
-    const response = await fetch("/api/chat-votes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "New Debate" }),
-    });
-    const data = await response.json();
-    setDebateId(data.debateId);
+  const startListening = () => {
+    setIsListening(true);
   };
 
   const clearVotes = async () => {
-    if (debateId) {
-      await fetch(`/api/chat-votes?debateId=${debateId}`, { method: "DELETE" });
-      setVotes([]);
-    }
+    await fetch(`/api/chat-votes`, { method: "DELETE" });
+    setVotes([]);
   };
 
   const getVotes = async () => {
-    if (debateId) {
-      const response = await fetch(`/api/chat-votes?debateId=${debateId}`);
+    const response = await fetch(`/api/chat-votes`);
+    const data = await response.json();
+    setVotes(data.votes);
+  };
+
+  const fetchMessages = async () => {
+    if (!liveChatId) {
+      console.error("Live Chat ID is not set");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/fetch-messages?liveChatId=${liveChatId}&pageToken=${
+          pageToken || ""
+        }`
+      );
       const data = await response.json();
-      setVotes(data.votes);
+
+      if (data.error) {
+        console.error("Error fetching messages:", data.error);
+        // Handle the error (e.g., stop polling if the stream has ended)
+        if (data.error.includes("The live stream may have ended")) {
+          setIsListening(false);
+        }
+        return;
+      }
+
+      setPageToken(data.nextPageToken);
+
+      for (const message of data.messages) {
+        if (message.message === "1" || message.message === "2") {
+          await fetch("/api/chat-votes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              platform: message.platform,
+              vote: message.message,
+              timestamp: message.timestamp, // Add this line
+            }),
+          });
+        }
+      }
+      await getVotes();
+    } catch (error) {
+      console.error("Error in fetchMessages:", error);
+    }
+  };
+
+  const getLiveChatId = async (videoId: string) => {
+    try {
+      const response = await fetch(`/api/get-live-chat-id?videoId=${videoId}`);
+      const data = await response.json();
+
+      if (data.liveChatId) {
+        console.log("Live Chat ID:", data.liveChatId);
+        setLiveChatId(data.liveChatId);
+      } else {
+        console.error("Failed to get Live Chat ID:", data.error);
+        setIsListening(false);
+      }
+    } catch (error) {
+      console.error("Error fetching Live Chat ID:", error);
+      setIsListening(false);
     }
   };
 
   useEffect(() => {
-    const interval = setInterval(getVotes, 5000); // Poll for votes every 5 seconds
-    return () => clearInterval(interval);
-  }, [debateId]);
+    if (isListening && !liveChatId) {
+      getLiveChatId("SaZ66OGSNyY");
+    }
+  }, [isListening, liveChatId]);
 
   useEffect(() => {
-    setChartData(processVotesForChart(votes));
+    let interval: NodeJS.Timeout;
+    if (isListening && liveChatId) {
+      interval = setInterval(fetchMessages, 5000); // Poll for messages every 5 seconds
+    }
+    return () => clearInterval(interval);
+  }, [isListening, liveChatId, pageToken]);
+
+  useEffect(() => {
+    const { voteData, platforms, maxVotes } = processVotesForCharts(votes);
+    setVoteData(voteData);
+    setPlatforms(platforms);
+    setMaxVotes(maxVotes);
   }, [votes]);
 
   return (
-    <div>
-      {!debateId ? (
-        <button onClick={startNewDebate}>Start New Debate</button>
+    <div className="p-4">
+      {!isListening ? (
+        <button
+          onClick={startListening}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Start Listening for Votes
+        </button>
       ) : (
         <>
-          <h1>Debate ID: {debateId}</h1>
-          <button onClick={getVotes}>Refresh Votes</button>
-          <button onClick={clearVotes}>Clear Votes</button>
+          <h1 className="text-2xl font-bold mb-4">Live Voting</h1>
+          <div className="space-x-2 mb-4">
+            <button
+              onClick={getVotes}
+              className="bg-green-500 text-white px-4 py-2 rounded"
+            >
+              Refresh Votes
+            </button>
+            <button
+              onClick={clearVotes}
+              className="bg-red-500 text-white px-4 py-2 rounded"
+            >
+              Clear Votes
+            </button>
+          </div>
 
-          {/* Line Chart */}
-          <div style={{ width: "100%", height: 400 }}>
-            <ResponsiveContainer>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="yes" stroke="#8884d8" />
-                <Line type="monotone" dataKey="no" stroke="#82ca9d" />
-              </LineChart>
-            </ResponsiveContainer>
+          {/* Bar Charts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {voteData.map((data, index) => (
+              <div key={index} className="bg-white p-4 rounded shadow">
+                <h2 className="text-xl font-semibold mb-2">
+                  Votes for Option {data.name}
+                </h2>
+                <div style={{ width: "100%", height: 300 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={[data]}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis domain={[0, maxVotes]} />
+                      <Tooltip />
+                      <Legend />
+                      <Bar
+                        dataKey="votes"
+                        fill={index === 0 ? "#8884d8" : "#82ca9d"}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Vote counts */}
-          <div>
-            <h2>Total Votes</h2>
-            <p>Yes: {chartData[chartData.length - 1]?.yes || 0}</p>
-            <p>No: {chartData[chartData.length - 1]?.no || 0}</p>
+          <div className="bg-white p-4 rounded shadow mb-4">
+            <h2 className="text-xl font-semibold mb-2">Total Votes</h2>
+            <p>Option 1: {voteData[0]?.votes || 0}</p>
+            <p>Option 2: {voteData[1]?.votes || 0}</p>
+          </div>
+
+          {/* Platforms */}
+          <div className="bg-white p-4 rounded shadow mb-4">
+            <h2 className="text-xl font-semibold mb-2">Active Platforms</h2>
+            <ul>
+              {platforms.map((platform, index) => (
+                <li key={index}>{platform}</li>
+              ))}
+            </ul>
           </div>
 
           {/* Existing vote list */}
-          <ul>
-            {votes.map((vote, index) => (
-              <li key={index}>
-                {vote.platform}: {vote.vote}
-              </li>
-            ))}
-          </ul>
+          <div className="bg-white p-4 rounded shadow">
+            <h2 className="text-xl font-semibold mb-2">Recent Votes</h2>
+            <ul>
+              {votes
+                .slice(-10)
+                .reverse()
+                .map((vote, index) => (
+                  <li key={index}>
+                    {vote.platform}: {vote.vote}
+                  </li>
+                ))}
+            </ul>
+          </div>
         </>
       )}
     </div>
