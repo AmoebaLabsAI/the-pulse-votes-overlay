@@ -128,7 +128,7 @@ export default function Home() {
         setLiveChatId(data.liveChatId);
         setIsListening(true); // Automatically start listening when we get a valid Live Chat ID
       } else {
-        console.error("Error! Failed to get Live Chat ID:", data.error);
+        console.error("Error!!! Failed to get Live Chat ID:", data.error);
         setIsListening(false);
       }
     } catch (error) {
