@@ -7,6 +7,22 @@ const youtube = google.youtube({
 });
 
 export async function GET(request: Request) {
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+  console.log("***************************");
+
   console.log("Fetching Live Chat ID");
   const { searchParams } = new URL(request.url);
   const videoId = searchParams.get("videoId");
@@ -23,6 +39,8 @@ export async function GET(request: Request) {
 
   try {
     console.log("Calling YouTube API");
+    console.log("videoID is" + videoId);
+
     const response = await youtube.videos.list({
       part: ["liveStreamingDetails"],
       id: [videoId],
@@ -39,7 +57,10 @@ export async function GET(request: Request) {
     if (!liveChatId) {
       console.error("Live chat ID not found in response");
       return NextResponse.json(
-        { error: "Live chat ID not found" },
+        {
+          error:
+            "Live chat ID not found. Ensure the video is a live stream and is currently active.",
+        },
         { status: 404 }
       );
     }
@@ -49,7 +70,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Error fetching live chat ID:", error);
     return NextResponse.json(
-      { error: "Failed to fetch live chat ID" },
+      { error: "Failed to fetch live chat ID. Check server logs for details." },
       { status: 500 }
     );
   }

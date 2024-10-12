@@ -46,6 +46,7 @@ export default function Home() {
   const [maxVotes, setMaxVotes] = useState<number>(0);
   const [liveChatId, setLiveChatId] = useState<string | null>(null);
   const [pageToken, setPageToken] = useState<string | null>(null);
+  const [videoId, setVideoId] = useState<string>("");
 
   const startListening = () => {
     setIsListening(true);
@@ -78,7 +79,6 @@ export default function Home() {
 
       if (data.error) {
         console.error("Error fetching messages:", data.error);
-        // Handle the error (e.g., stop polling if the stream has ended)
         if (data.error.includes("The live stream may have ended")) {
           setIsListening(false);
         }
@@ -95,7 +95,8 @@ export default function Home() {
             body: JSON.stringify({
               platform: message.platform,
               vote: message.message,
-              timestamp: message.timestamp, // Add this line
+              author: message.author,
+              timestamp: message.timestamp,
             }),
           });
         }
@@ -107,13 +108,25 @@ export default function Home() {
   };
 
   const getLiveChatId = async (videoId: string) => {
+    if (!videoId) {
+      console.error("Video ID is required");
+      return;
+    }
     try {
-      const response = await fetch(`/api/get-live-chat-id?videoId=${videoId}`);
+      const response = await fetch(
+        `/api/get-live-chat-id?videoId=${videoId}&_=${Date.now()}`,
+        {
+          cache: "no-store",
+        }
+      );
       const data = await response.json();
 
+      console.log("API Response:", data);
+
       if (data.liveChatId) {
-        console.log("Live Chat ID:", data.liveChatId);
+        console.log("New Live Chat ID:", data.liveChatId);
         setLiveChatId(data.liveChatId);
+        setIsListening(true); // Automatically start listening when we get a valid Live Chat ID
       } else {
         console.error("Failed to get Live Chat ID:", data.error);
         setIsListening(false);
@@ -123,12 +136,6 @@ export default function Home() {
       setIsListening(false);
     }
   };
-
-  useEffect(() => {
-    if (isListening && !liveChatId) {
-      getLiveChatId("SaZ66OGSNyY");
-    }
-  }, [isListening, liveChatId]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -147,13 +154,27 @@ export default function Home() {
 
   return (
     <div className="p-4">
-      {!isListening ? (
+      <div className="mb-4">
+        <input
+          type="text"
+          value={videoId}
+          onChange={(e) => setVideoId(e.target.value)}
+          placeholder="Enter YouTube Video ID"
+          className="border p-2 mr-2"
+        />
         <button
-          onClick={startListening}
+          onClick={() => getLiveChatId(videoId)}
           className="bg-blue-500 text-white px-4 py-2 rounded"
         >
-          Start Listening for Votes
+          Set Live Chat ID
         </button>
+      </div>
+
+      {!isListening ? (
+        <p>
+          Enter a Video ID and click "Set Live Chat ID" to start listening for
+          votes.
+        </p>
       ) : (
         <>
           <h1 className="text-2xl font-bold mb-4">Live Voting</h1>

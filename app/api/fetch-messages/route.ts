@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import tmi from "tmi.js";
-import { ChatUserstate } from "tmi.js";
+
+// Define a type for the Twitch message
+interface TwitchMessage {
+  platform: "twitch";
+  message: string;
+  author: string;
+  timestamp: string;
+}
 
 const youtube = google.youtube({
   version: "v3",
@@ -50,8 +57,8 @@ export async function GET(request: Request) {
 
     // Fetch Twitch messages
     await twitchClient.connect();
-    const twitchMessages = await new Promise<any[]>((resolve) => {
-      const messages: any[] = [];
+    const twitchMessages = await new Promise<TwitchMessage[]>((resolve) => {
+      const messages: TwitchMessage[] = [];
       const timeout = setTimeout(() => {
         twitchClient.disconnect();
         resolve(messages);
@@ -61,32 +68,44 @@ export async function GET(request: Request) {
         "message",
         (
           _channel: string,
-          tags: { [key: string]: any },
+          tags: { [key: string]: string },
           message: string,
           self: boolean
         ) => {
           if (!self) {
-            const timestamp = new Date(parseInt(tags["tmi-sent-ts"] as string));
+            const timestamp = new Date(parseInt(tags["tmi-sent-ts"] || "0"));
             if (timestamp >= today) {
               messages.push({
                 platform: "twitch",
                 message: message,
-                author: tags["display-name"],
+                author: tags["display-name"] || "Anonymous",
                 timestamp: timestamp.toISOString(),
               });
             }
           }
         }
       );
+
+      // Clear the timeout if the client disconnects
+      twitchClient.on("disconnected", () => {
+        clearTimeout(timeout);
+        resolve(messages);
+      });
     });
+
+    // Disconnect from Twitch after fetching messages
+    twitchClient.disconnect();
 
     return NextResponse.json({
       messages: [...youtubeMessages, ...twitchMessages],
       nextPageToken: youtubeResponse.data.nextPageToken,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error fetching messages:", error);
-    if (error.message.includes("page token is not valid")) {
+    if (
+      error instanceof Error &&
+      error.message.includes("page token is not valid")
+    ) {
       return NextResponse.json(
         { error: "Invalid page token. The live stream may have ended." },
         { status: 400 }

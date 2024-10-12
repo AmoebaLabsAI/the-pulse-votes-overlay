@@ -1,4 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Live Voting Application
+
+This application collects and visualizes votes from YouTube and Twitch live chats in real-time.
+
+## How It Works: Data Flow
+
+1. **Initialization**
+
+   - User clicks "Start Listening for Votes" in the UI (`app/page.tsx`).
+   - The app fetches the YouTube Live Chat ID (`/api/get-live-chat-id`).
+
+2. **Message Fetching (Every 5 seconds)**
+
+   - The app calls `/api/fetch-messages` with the Live Chat ID.
+   - This API route:
+     a. Retrieves recent YouTube chat messages.
+     b. Connects to Twitch and listens for messages for 5 seconds.
+     c. Filters messages from both platforms to only include those from today.
+
+3. **Vote Processing**
+
+   - For each message containing "1" or "2":
+     - The app sends a POST request to `/api/chat-votes`.
+     - This inserts the vote into the database, avoiding duplicates.
+
+4. **Vote Retrieval**
+
+   - After processing new messages, the app calls GET `/api/chat-votes`.
+   - This retrieves all votes from the database.
+
+5. **UI Update**
+   - The app processes the vote data and updates the charts and counters.
+
+## API Routes
+
+### `/api/get-live-chat-id`
+
+- **Input**: YouTube video ID
+- **Output**: Live Chat ID for the video
+- **Purpose**: Initializes YouTube chat connection
+
+### `/api/fetch-messages`
+
+- **Input**: Live Chat ID, page token
+- **Output**: Recent messages from YouTube and Twitch
+- **Purpose**: Retrieves new chat messages for vote processing
+
+### `/api/chat-votes`
+
+- **POST**
+  - **Input**: Platform, vote, author, timestamp
+  - **Purpose**: Inserts a new vote into the database
+- **GET**
+  - **Output**: All recorded votes
+  - **Purpose**: Retrieves votes for display
+- **DELETE**
+  - **Purpose**: Clears all votes from the database
+
+## Data Freshness and Deduplication
+
+- Only messages from the current day are processed.
+- The database schema prevents duplicate votes from the same author, platform, and timestamp.
+
+## Privacy and Data Usage
+
+- Only voting data ("1" or "2" messages) is collected and stored.
+- Votes are stored with minimal identifying information (platform and timestamp).
+
+## Technical Notes
+
+- This application uses API keys for YouTube and Twitch connections.
+- The app is built with Next.js and uses server-side API routes for data processing.
+- Real-time updates are achieved through polling every 5 seconds.
 
 ## Getting Started
 
