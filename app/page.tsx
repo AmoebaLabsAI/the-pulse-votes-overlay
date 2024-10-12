@@ -48,10 +48,6 @@ export default function Home() {
   const [pageToken, setPageToken] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string>("");
 
-  const startListening = () => {
-    setIsListening(true);
-  };
-
   const clearVotes = async () => {
     await fetch(`/api/chat-votes`, { method: "DELETE" });
     setVotes([]);
@@ -172,8 +168,8 @@ export default function Home() {
 
       {!isListening ? (
         <p>
-          Enter a Video ID and click "Set Live Chat ID" to start listening for
-          votes.
+          Enter a Video ID and click &quot;Set Live Chat ID&quot; to start
+          listening for votes.
         </p>
       ) : (
         <>
