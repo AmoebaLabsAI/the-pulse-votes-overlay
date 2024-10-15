@@ -99,6 +99,8 @@ The frontend then fetches this aggregated vote data and uses it to update the vi
 
 ## Getting Started
 
+In order for this app to work, you need to setup environment variables as shown in the .env.example file. Change this to a .env.local file for local development. Make sure these environment variables are set in your production environment. Don't forget to get API keys and client secrets from Twitch and YouTube.
+
 First, run the development server:
 
 ```bash
