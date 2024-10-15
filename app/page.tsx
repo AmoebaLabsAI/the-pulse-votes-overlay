@@ -20,8 +20,8 @@ const processVotesForCharts = (votes: any[]) => {
   const platforms = new Set<string>();
 
   votes.forEach((vote) => {
-    if (vote.vote === "1" || vote.vote === "2") {
-      voteCounts[vote.vote as "1" | "2"] += 1;
+    if (vote.message === "1" || vote.message === "2") {
+      voteCounts[vote.message as "1" | "2"] += 1;
       platforms.add(vote.platform);
     }
   });
@@ -245,7 +245,7 @@ export default function Home() {
                 .reverse()
                 .map((vote, index) => (
                   <li key={index}>
-                    {vote.platform}: {vote.vote}
+                    {vote.platform}: {vote.message}
                   </li>
                 ))}
             </ul>

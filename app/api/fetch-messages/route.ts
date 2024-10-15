@@ -2,21 +2,9 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import tmi from "tmi.js";
 
-// Define a type for the Twitch message
-interface TwitchMessage {
-  platform: "twitch";
-  message: string;
-  author: string;
-  timestamp: string;
-}
-
 const youtube = google.youtube({
   version: "v3",
   auth: process.env.YOUTUBE_API_KEY,
-});
-
-const twitchClient = new tmi.Client({
-  channels: [process.env.TWITCH_CHANNEL!],
 });
 
 export async function GET(request: Request) {
@@ -55,49 +43,8 @@ export async function GET(request: Request) {
           timestamp: item.snippet?.publishedAt,
         })) || [];
 
-    // Fetch Twitch messages
-    await twitchClient.connect();
-    const twitchMessages = await new Promise<TwitchMessage[]>((resolve) => {
-      const messages: TwitchMessage[] = [];
-      const timeout = setTimeout(() => {
-        twitchClient.disconnect();
-        resolve(messages);
-      }, 5000); // Listen for 5 seconds
-
-      twitchClient.on(
-        "message",
-        (
-          _channel: string,
-          tags: { [key: string]: string },
-          message: string,
-          self: boolean
-        ) => {
-          if (!self) {
-            const timestamp = new Date(parseInt(tags["tmi-sent-ts"] || "0"));
-            if (timestamp >= today) {
-              messages.push({
-                platform: "twitch",
-                message: message,
-                author: tags["display-name"] || "Anonymous",
-                timestamp: timestamp.toISOString(),
-              });
-            }
-          }
-        }
-      );
-
-      // Clear the timeout if the client disconnects
-      twitchClient.on("disconnected", () => {
-        clearTimeout(timeout);
-        resolve(messages);
-      });
-    });
-
-    // Disconnect from Twitch after fetching messages
-    twitchClient.disconnect();
-
     return NextResponse.json({
-      messages: [...youtubeMessages, ...twitchMessages],
+      messages: [...youtubeMessages],
       nextPageToken: youtubeResponse.data.nextPageToken,
     });
   } catch (error) {
