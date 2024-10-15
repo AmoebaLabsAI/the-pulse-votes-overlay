@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import tmi from "tmi.js";
 
 const youtube = google.youtube({
   version: "v3",
