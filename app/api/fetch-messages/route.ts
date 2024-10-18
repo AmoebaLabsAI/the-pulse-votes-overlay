@@ -28,12 +28,12 @@ export async function GET(request: Request) {
       part: ["snippet", "authorDetails"],
       pageToken: pageToken,
     });
-
     const youtubeMessages =
       youtubeResponse.data.items
         ?.filter((item) => {
           const publishedAt = new Date(item.snippet?.publishedAt || "");
-          return publishedAt >= today;
+          const message = item.snippet?.displayMessage;
+          return publishedAt >= today && (message === "1" || message === "2");
         })
         .map((item) => ({
           platform: "youtube",
