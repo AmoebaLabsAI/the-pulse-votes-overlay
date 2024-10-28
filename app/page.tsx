@@ -156,7 +156,7 @@ export default function Home() {
           value={videoId}
           onChange={(e) => setVideoId(e.target.value)}
           placeholder="Enter YouTube Video ID"
-          className="border p-2 mr-2 placeholder-black"
+          className="border p-2 mr-2 focus:text-black"
         />
         <button
           onClick={() => getLiveChatId(videoId)}
