@@ -17,11 +17,20 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+.guest1-lastname, .guest2-lastname {
+  --scale-factor: 1;
+}
+
+@supports (width: fit-content) {
+  .guest1-lastname, .guest2-lastname {
+    --scale-factor: min(1, var(--container-width) / var(--content-width));
   }
 }
